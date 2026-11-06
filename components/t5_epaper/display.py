@@ -5,7 +5,7 @@ from esphome.components import display, esp32, i2c #added the i2c
 from esphome.const import CONF_ID, CONF_LAMBDA
 
 DEPENDENCIES = ["esp32", "i2c"]
-ONF_I2C_ID = "i2c_id"
+CONF_I2C_ID = "i2c_id"
 CONF_ON_TOUCH = "on_touch"
 CONF_ON_HOME_BUTTON = "on_home_button"
 CONF_VCOM = "vcom"
