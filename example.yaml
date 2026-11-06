@@ -1,3 +1,4 @@
+# Forked, James-Bell, 11/6/26
 # Minimal, self-contained example for the LilyGO T5 E-Paper S3 Pro.
 # Works standalone (no Home Assistant entities required): shows device status + battery,
 # counts taps, and has an on-screen "Clean screen" button that does a full e-paper refresh.
