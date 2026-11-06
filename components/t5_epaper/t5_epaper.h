@@ -2,6 +2,9 @@
 #include <cstring>
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/i2c/i2c_bus.h"
+#include "esphome/components/i2c/i2c_bus_esp_idf.h"
+//#include "driver/i2c_master.h"
+
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include "esphome/core/automation.h"
@@ -41,21 +44,26 @@ class T5Display : public display::Display {
     */
     // 1) Get the ESPHome-created I2C bus (esphome must initialise the bus before we try to use it)    
     if (this->i2c_bus_ == nullptr) {
-        ESP_LOGE("t5_epaper", "I2C bus not configured");
+      ESP_LOGE("t5_epaper", "I2C bus not configured");
+      this->mark_failed();
+      return;
+    }
+    
+    auto *idf_bus =
+        static_cast<esphome::i2c::IDFI2CBus *>(this->i2c_bus_);
+    
+    this->bus_ = idf_bus->get_bus_handle();
+    
+    if (this->bus_ == nullptr) {
+        ESP_LOGE("t5_epaper", "I2C bus handle is null");
         this->mark_failed();
         return;
-    }    
-    int port = this->i2c_bus_->get_port();
+    }
     
-    if (i2c_master_get_bus_handle(
-            static_cast<i2c_port_t>(port),
-            &this->bus_) != ESP_OK) {
+    ESP_LOGI("t5_epaper", "Successfully attached to ESPHome I2C bus");
+
     
-        ESP_LOGE("t5_epaper", "Unable to retrieve ESPHome I2C bus handle");
-        this->mark_failed();
-        return;
-    }    
-    ESP_LOGI("t5_epaper", "Using ESPHome I2C bus on port %d", port);
+   
     // 1b) hardware-reset the GT911 BEFORE epdiy claims GPIO9 (=RST, shared with EPD data D8).
     // The side RST button restarts the ESP but leaves the GT911 in a stuck/held state — it
     // stops answering at BOTH 0x5D and 0x14 even though the I2C bus + EPD still work. A clean
@@ -339,6 +347,16 @@ class T5Display : public display::Display {
     ESP_LOGCONFIG("t5_epaper", "  GT911: %s, charge cap: %d%%", this->gt911_ ? "found" : "not found", this->charge_cap_pct_);
   }
 
+  //void set_i2c_bus(esphome::i2c::I2CBus *bus) {
+  void set_i2c_bus(esphome::i2c::InternalI2CBus *bus) { 
+    this->i2c_bus_ = bus;
+  }
+
+  float get_setup_priority() const override {
+    return setup_priority::PROCESSOR;
+  }
+
+
  protected:
   bool solid_pass_(uint8_t transition, EpdDrawMode mode) {
     std::memset(this->hl_.difference_fb, transition, this->fb_size_ * 2);
@@ -461,16 +479,7 @@ class T5Display : public display::Display {
       this->on_charger_ = ((s >> 2) & 0x01) != 0;                      // PG_STAT[2]: external power present =
     }                                                                  // solid rail -> safe for crisp GC16
   }
-
-  //void set_i2c_bus(esphome::i2c::I2CBus *bus) {
-  void set_i2c_bus(esphome::i2c::InternalI2CBus *bus) { 
-    this->i2c_bus_ = bus;
-  }
-
-  float get_setup_priority() const override {
-    return setup_priority::AFTER_HARDWARE;
-  }
-
+  
   //esphome::i2c::I2CBus *i2c_bus_{nullptr}; //added for i2c
   esphome::i2c::InternalI2CBus *i2c_bus_{nullptr};
   //i2c_master_bus_handle_t bus_{nullptr};
