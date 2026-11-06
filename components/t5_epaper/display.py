@@ -1,10 +1,11 @@
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import display, esp32
+from esphome.components import display, esp32, i2c #added the i2c
 from esphome.const import CONF_ID, CONF_LAMBDA
 
-DEPENDENCIES = ["esp32"]
+DEPENDENCIES = ["esp32", "i2c"]
+ONF_I2C_ID = "i2c_id"
 CONF_ON_TOUCH = "on_touch"
 CONF_ON_HOME_BUTTON = "on_home_button"
 CONF_VCOM = "vcom"
@@ -32,6 +33,7 @@ ROTATIONS = {
 CONFIG_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(T5Display),
+        cv.Required(CONF_I2C_ID): cv.use_id(i2c.I2CBus),
         cv.Optional(CONF_ON_TOUCH): automation.validate_automation(single=True),
         # The round "home" key below the screen (a GT911 capacitive key). Wire it to
         # e.g. lambda: 'id(epd).deep_clean();' for a hardware screen-clean button.
@@ -56,6 +58,8 @@ async def to_code(config):
     esp32.add_idf_component(name="epdiy", repo=EPDIY_REPO, ref=EPDIY_REF)
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
+    bus = await cg.get_variable(config[CONF_I2C_ID])
+    cg.add(var.set_i2c_bus(bus))
     cg.add(var.set_home_button_debounce(config[CONF_HOME_BUTTON_DEBOUNCE]))
     cg.add(var.set_vcom(config[CONF_VCOM]))
     cg.add(var.set_panel_rotation(cg.RawExpression(ROTATIONS[config[CONF_PANEL_ROTATION]])))
