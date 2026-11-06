@@ -1,5 +1,7 @@
 #pragma once
 #include <cstring>
+#include "esphome/components/i2c/i2c.h"
+#include "esphome/components/i2c/i2c_bus.h"
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include "esphome/core/automation.h"
@@ -23,6 +25,7 @@ class T5Display : public display::Display {
  public:
   void setup() override {
     // 1) our shared I2C bus on the config pins (39/40)
+    /*
     i2c_master_bus_config_t bc = {};
     bc.i2c_port = I2C_NUM_0;
     bc.sda_io_num = (gpio_num_t) 39;
@@ -35,6 +38,24 @@ class T5Display : public display::Display {
       this->mark_failed();
       return;
     }
+    */
+    // 1) Get the ESPHome-created I2C bus (esphome must initialise the bus before we try to use it)    
+    if (this->i2c_bus_ == nullptr) {
+        ESP_LOGE("t5_epaper", "I2C bus not configured");
+        this->mark_failed();
+        return;
+    }    
+    int port = this->i2c_bus_->get_port();
+    
+    if (i2c_master_get_bus_handle(
+            static_cast<i2c_port_t>(port),
+            &this->bus_) != ESP_OK) {
+    
+        ESP_LOGE("t5_epaper", "Unable to retrieve ESPHome I2C bus handle");
+        this->mark_failed();
+        return;
+    }    
+    ESP_LOGI("t5_epaper", "Using ESPHome I2C bus on port %d", port);
     // 1b) hardware-reset the GT911 BEFORE epdiy claims GPIO9 (=RST, shared with EPD data D8).
     // The side RST button restarts the ESP but leaves the GT911 in a stuck/held state — it
     // stops answering at BOTH 0x5D and 0x14 even though the I2C bus + EPD still work. A clean
@@ -440,6 +461,19 @@ class T5Display : public display::Display {
       this->on_charger_ = ((s >> 2) & 0x01) != 0;                      // PG_STAT[2]: external power present =
     }                                                                  // solid rail -> safe for crisp GC16
   }
+
+  //void set_i2c_bus(esphome::i2c::I2CBus *bus) {
+  void set_i2c_bus(esphome::i2c::InternalI2CBus *bus) { 
+    this->i2c_bus_ = bus;
+  }
+
+  float get_setup_priority() const override {
+    return setup_priority::AFTER_HARDWARE;
+  }
+
+  //esphome::i2c::I2CBus *i2c_bus_{nullptr}; //added for i2c
+  esphome::i2c::InternalI2CBus *i2c_bus_{nullptr};
+  //i2c_master_bus_handle_t bus_{nullptr};
 
   int vcom_{1560};
   EpdRotation rotation_{EPD_ROT_INVERTED_PORTRAIT};
