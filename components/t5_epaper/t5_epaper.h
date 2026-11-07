@@ -270,9 +270,7 @@ class T5Display : public display::Display {
     }
     this->last_push_succeeded_ = true; //set some flags    
    //log end of update
-    ESP_LOGI("t5_epaper", "partial epd push ok (#%d, %s, %ums, pg_fail=%u)", this->refresh_count_,
-             clean ? "clean+content" : (this->on_charger_ ? "GC16" : "DU"),
-             (unsigned)(millis() - started), (unsigned)this->pg_fail_count_);
+    ESP_LOGI("t5_epaper", "partial epd push ok (%ums, pg_fail=%u)", (unsigned)(millis() - started), (unsigned)this->pg_fail_count_);
   }
 
   void loop() override {
