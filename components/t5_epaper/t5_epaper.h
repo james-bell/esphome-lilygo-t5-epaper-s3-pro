@@ -156,15 +156,19 @@ class T5Display : public display::Display {
   }
 
   void update() override {
+    //check if failed
     if (this->is_failed() || this->fb_ == nullptr) return;
+    //in mid retry?
     if (this->retry_pending_ && static_cast<int32_t>(millis() - this->retry_due_) < 0) return;
+    //check power high enough for an update
     if (!this->on_charger_ && (this->batt_mv_ <= 0 || this->batt_mv_ < 3500)) {
       ESP_LOGW("t5_epaper", "battery too low or unknown - deferring display update/clean");
       return;
     }
-    ++this->refresh_count_;
-    std::memset(this->fb_, 0xFF, this->fb_size_);
+    ++this->refresh_count_; //inc refr count
+    std::memset(this->fb_, 0xFF, this->fb_size_); //set framebuffer to all black
     this->do_update_();
+    //check for 100% empty fb
     bool blank = true;
     for (size_t i = 0; i < this->fb_size_; ++i)
       if (this->fb_[i] != 0xFF) { blank = false; break; }
@@ -174,13 +178,13 @@ class T5Display : public display::Display {
       return;
     }
     const bool clean = this->clean_requested_ || !this->last_push_succeeded_ ||
-                       this->pushes_since_clean_ >= 19;
-    if (!clean && std::memcmp(this->fb_, this->hl_.back_fb, this->fb_size_) == 0) {
+                       this->pushes_since_clean_ >= 19; #setup "should we clean?"
+    if (!clean && std::memcmp(this->fb_, this->hl_.back_fb, this->fb_size_) == 0) { //is new frame identical to existing?
       ++this->unchanged_frames_;
       return;
     }
-    const uint32_t started = millis();
-    const auto power_error = epd_poweron_checked();
+    const uint32_t started = millis(); //track time for update
+    const auto power_error = epd_poweron_checked(); //check power
     if (power_error != ESP_OK || !this->epd_powergood_()) {
       ESP_LOGW("t5_epaper", "Display power-on/readiness failed (%d)", (int) power_error);
       ++this->pg_fail_count_;
@@ -193,14 +197,14 @@ class T5Display : public display::Display {
     if (clean) {
       // Establish white without relying on the old back buffer. Keep the
       // validated content intact in front_fb throughout every cleaning pass.
-      ok = this->solid_pass_(0xF0, MODE_DU);
+      ok = this->solid_pass_(0xF0, MODE_DU); //draw with 2-bit B&W driver
       if (ok && this->deep_clean_requested_ && this->on_charger_) {
         // Preserve the public deep_clean API: three black/white GC16 cycles
         // on external power, with every pass checked and no extra framebuffer.
         for (int i = 0; i < 3 && ok; ++i)
           ok = this->solid_pass_(0x0F, MODE_GC16) && this->solid_pass_(0xF0, MODE_GC16);
       }
-      if (ok) std::memset(this->hl_.back_fb, 0xFF, this->fb_size_);
+      if (ok) std::memset(this->hl_.back_fb, 0xFF, this->fb_size_); //clear back_fb
     }
     if (ok) {
       auto mode = this->on_charger_ ? MODE_GC16 : MODE_DU;
@@ -217,14 +221,56 @@ class T5Display : public display::Display {
       this->draw_failed_();
       return;
     }
-    this->last_push_succeeded_ = true;
+    this->last_push_succeeded_ = true; //set some flags
     this->clean_requested_ = false;
     this->deep_clean_requested_ = false;
     this->retry_pending_ = false;
     this->retry_attempts_ = 0;
     if (clean) { ++this->clean_count_; this->pushes_since_clean_ = 0; }
     else ++this->pushes_since_clean_;
+   //log end of update
     ESP_LOGI("t5_epaper", "epd push ok (#%d, %s, %ums, pg_fail=%u)", this->refresh_count_,
+             clean ? "clean+content" : (this->on_charger_ ? "GC16" : "DU"),
+             (unsigned)(millis() - started), (unsigned)this->pg_fail_count_);
+  }
+
+  void partial_update(int x, int y, int w, int h) override {
+    //check if failed
+    if (this->is_failed() || this->fb_ == nullptr) return;
+    
+    const uint32_t started = millis(); //track time for update
+    const auto power_error = epd_poweron_checked(); //check power
+    if (power_error != ESP_OK || !this->epd_powergood_()) {
+      ESP_LOGW("t5_epaper", "Partial Update, display power-on/readiness failed (%d)", (int) power_error);
+      ++this->pg_fail_count_;
+      if (epd_poweroff_checked() != ESP_OK)
+        ESP_LOGW("t5_epaper", "Display power cleanup failed");
+      this->draw_failed_();
+      return;
+    }
+    bool ok = true;
+
+    EpdRect partial_rect =  { x, y, w, h };
+    
+    auto mode = this->on_charger_ ? MODE_GC16 : MODE_DU;
+    //auto err = epd_hl_update_screen(&this->hl_, mode, 25);
+    //enum EpdDrawError epd_hl_update_area(EpdiyHighlevelState* state, enum EpdDrawMode mode, int temperature, EpdRect area) 
+    auto err = epd_hl_update_area(&this->hl_, mode, 25, partial_rect); 
+    ok = err == EPD_DRAW_SUCCESS && this->epd_powergood_();
+    
+    // Always switch off, even after a failed draw. Do not mark the transaction
+    // successful when shutdown failed; invalidate diff state and retry later.
+    if (epd_poweroff_checked() != ESP_OK) {
+      ESP_LOGW("t5_epaper", "Partial update, display power-off failed");
+      ok = false;
+    }
+    if (!ok) {
+      this->draw_failed_();
+      return;
+    }
+    this->last_push_succeeded_ = true; //set some flags    
+   //log end of update
+    ESP_LOGI("t5_epaper", "partial epd push ok (#%d, %s, %ums, pg_fail=%u)", this->refresh_count_,
              clean ? "clean+content" : (this->on_charger_ ? "GC16" : "DU"),
              (unsigned)(millis() - started), (unsigned)this->pg_fail_count_);
   }
