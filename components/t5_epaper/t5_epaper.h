@@ -178,7 +178,7 @@ class T5Display : public display::Display {
       return;
     }
     const bool clean = this->clean_requested_ || !this->last_push_succeeded_ ||
-                       this->pushes_since_clean_ >= 19; #setup "should we clean?"
+                       this->pushes_since_clean_ >= 19; //setup "should we clean?"
     if (!clean && std::memcmp(this->fb_, this->hl_.back_fb, this->fb_size_) == 0) { //is new frame identical to existing?
       ++this->unchanged_frames_;
       return;
@@ -234,7 +234,7 @@ class T5Display : public display::Display {
              (unsigned)(millis() - started), (unsigned)this->pg_fail_count_);
   }
 
-  void partial_update(int x, int y, int w, int h) override {
+  void partial_update(int x, int y, int w, int h) {
     //check if failed
     if (this->is_failed() || this->fb_ == nullptr) return;
     
