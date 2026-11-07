@@ -27,6 +27,12 @@ talks to Home Assistant.
 
 ---
 
+Changes made to: /esphome/esphome/components/i2c/i2c_bus_esp_idf.h
+i2c_master_bus_handle_t get_bus_handle() const {
+    return this->bus_;
+}
+Stored outside the esphome docker in: /config/esphome-patches/i2c_bus_esp_idf.h
+
 ## Quick start
 
 ```yaml
