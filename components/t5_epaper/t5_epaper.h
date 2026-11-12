@@ -51,14 +51,31 @@ class T5Display : public display::Display {
     
     auto *idf_bus =
         static_cast<esphome::i2c::IDFI2CBus *>(this->i2c_bus_);
+
+    if (idf_bus == nullptr) {
+      ESP_LOGE("t5_epaper", "Invalid I2C bus");
+      this->mark_failed();
+      return;
+    }
+
+    esp_err_t err = i2c_master_get_bus_handle(
+        static_cast<i2c_port_t>(idf_bus->get_port()),
+        &this->bus_
+    );
     
-    this->bus_ = idf_bus->get_bus_handle();
-    
-    if (this->bus_ == nullptr) {
-        ESP_LOGE("t5_epaper", "I2C bus handle is null");
+    if (err != ESP_OK) {
+        ESP_LOGE("t5_epaper", "Failed to get I2C bus handle: %s",
+                 esp_err_to_name(err));
         this->mark_failed();
         return;
     }
+    //this->bus_ = idf_bus->get_bus_handle();
+    
+    //if (this->bus_ == nullptr) {
+    //    ESP_LOGE("t5_epaper", "I2C bus handle is null");
+    //    this->mark_failed();
+    //    return;
+    //}
     
     ESP_LOGI("t5_epaper", "Successfully attached to ESPHome I2C bus");
 
